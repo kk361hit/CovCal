@@ -1,0 +1,107 @@
+#!/bin/sh
+#author: kk361
+
+
+thread=1
+while getopts ':i:1:2:u:t:h' opt
+do
+    case $opt in
+        i)  
+			input=$OPTARG
+			;; 
+		u)  
+			unpairedfile=$OPTARG
+			;; 
+			
+		1)  
+			file1=$OPTARG 
+			;; 
+		
+		2)  
+			file2=$OPTARG 
+			;; 
+		t)  
+			thread=$OPTARG 
+			;; 
+		h)
+			echo "Usage:"
+			echo "	./Cov -i input.fasta -u unpaired.fastq -1 1.fq -2 2.fq -t Thread[default = 1]"
+			exit
+			;;
+    esac
+done
+
+echo "$input,$unpairedfile,$file1,$file2"
+if [ -z "$input" ]; then
+	echo "Usage:"
+	echo "	./Cov -i input.fasta -u unpaired.fastq -1 1.fq -2 2.fq -t Thread[default = 1]"
+	echo "Cannot find inputfile"
+	exit
+fi
+if [ ! -r "$input" ]; then
+	echo "Usage:"
+	echo "	./Cov -i input.fasta -u unpaired.fastq -1 1.fq -2 2.fq -t Thread[default = 1]"
+	echo "Cannot open $input"
+	exit
+fi
+if [ -z "$unpairedfile" ] && [ -z "$file1" ] && [ -z "$file2" ]; then
+	echo "Cannot find rawfile"
+	echo "Usage:"
+	echo "	./Cov -i input.fasta -u unpaired.fastq -1 1.fq -2 2.fq -t Thread[default = 1]"
+	exit
+fi
+if [ ! -z "$unpairedfile" ] && [ ! -r "$unpairedfile" ] ; then
+	echo "Cannot open $unpairedfile "
+	echo "Usage:"
+	echo "	./Cov -i input.fasta -u unpaired.fastq -1 1.fq -2 2.fq -t Thread[default = 1]"
+	exit
+fi
+
+if [ ! -z "$file1" ] && [ ! -r "$file1" ] ; then
+	echo "Cannot open $file1"
+	echo "Usage:"
+	echo "	./Cov -i input.fasta -u unpaired.fastq -1 1.fq -2 2.fq -t Thread[default = 1]"
+	exit
+fi
+
+if [ -z "$file2" ] && [ ! -r "$file2" ] ; then
+	echo "Cannot open $file2"
+	echo "Usage:"
+	echo "	./Cov -i input.fasta -u unpaired.fastq -1 1.fq -2 2.fq -t Thread[default = 1]"
+	exit
+fi
+
+
+if [ -r "$unpairedfile" ] ; then
+	Ui="-U $unpairedfile"
+else
+	Ui=""
+fi
+if [ -r "$file1" ] ; then
+	a1="-1 $file1"
+else
+	a1=""
+fi
+if [ -r "$file2" ] ; then
+	a2="-2 $file2"
+else
+	a2=""
+fi
+echo "$Ui, $a1, $a2"
+
+prefix=${input%.*}
+motif_file="$prefix"
+USsam="$prefix.sam"
+Ssam="$prefix.sorted.sam"
+depth="$prefix.depth"
+stats="$prefix.stats"
+echo "bowtie2-build $input $prefix "
+bowtie2-build $input $prefix 
+echo "bowtie2 -x $prefix $Ui $a1 $a2 -S $USsam -p $thread"
+bowtie2 -x $prefix $Ui $a1 $a2 -S $USsam -p $thread
+echo "samtools sort -o $Ssam -@ $thread $USsam"
+samtools sort -o $Ssam -@ $thread $USsam
+echo "samtools depth $Ssam > $depth"
+samtools depth $Ssam > $depth
+echo "./bin/Calcov.py -d $depth -o $stats"
+./bin/Calcov.py -d $depth -o $stats
